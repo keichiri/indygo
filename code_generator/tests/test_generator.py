@@ -21,7 +21,7 @@ class GeneratorTests(unittest.TestCase):
 
         declaration_1 = declarations[0]
         self.assertEqual(declaration_1.name, 'sign_and_submit_request')
-        self.assertEqual(declaration_1.return_type, 'indy_error_t')
+        self.assertEqual(declaration_1.return_type, 'int32_t')
         self.assertEqual(len(declaration_1.parameters), 6)
         self.assertEqual(declaration_1.parameters[0].name, 'command_handle')
         self.assertEqual(declaration_1.parameters[0].type, 'int32_t')
@@ -40,13 +40,13 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(callback.parameters[0].name, 'xcommand_handle')
         self.assertEqual(callback.parameters[0].type, 'int32_t')
         self.assertEqual(callback.parameters[1].name, 'err')
-        self.assertEqual(callback.parameters[1].type, 'indy_error_t')
+        self.assertEqual(callback.parameters[1].type, 'int32_t')
         self.assertEqual(callback.parameters[2].name, 'request_result_json')
         self.assertEqual(callback.parameters[2].type, 'const char*')
 
         declaration_2 = declarations[1]
         self.assertEqual(declaration_2.name, 'submit_request')
-        self.assertEqual(declaration_2.return_type, 'indy_error_t')
+        self.assertEqual(declaration_2.return_type, 'int32_t')
         self.assertEqual(len(declaration_2.parameters), 4)
         self.assertEqual(declaration_2.parameters[0].name, 'command_handle')
         self.assertEqual(declaration_2.parameters[0].type, 'int32_t')
@@ -61,13 +61,13 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(callback.parameters[0].name, 'xcommand_handle')
         self.assertEqual(callback.parameters[0].type, 'int32_t')
         self.assertEqual(callback.parameters[1].name, 'err')
-        self.assertEqual(callback.parameters[1].type, 'indy_error_t')
+        self.assertEqual(callback.parameters[1].type, 'int32_t')
         self.assertEqual(callback.parameters[2].name, 'request_result_json')
         self.assertEqual(callback.parameters[2].type, 'const char*')
 
         declaration_3 = declarations[2]
         self.assertEqual(declaration_3.name, 'sign_request')
-        self.assertEqual(declaration_3.return_type, 'indy_error_t')
+        self.assertEqual(declaration_3.return_type, 'int32_t')
         self.assertEqual(len(declaration_3.parameters), 5)
         self.assertEqual(declaration_3.parameters[0].name, 'command_handle')
         self.assertEqual(declaration_3.parameters[0].type, 'int32_t')
@@ -84,6 +84,6 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(callback.parameters[0].name, 'xcommand_handle')
         self.assertEqual(callback.parameters[0].type, 'int32_t')
         self.assertEqual(callback.parameters[1].name, 'err')
-        self.assertEqual(callback.parameters[1].type, 'indy_error_t')
+        self.assertEqual(callback.parameters[1].type, 'int32_t')
         self.assertEqual(callback.parameters[2].name, 'signed_request_json')
         self.assertEqual(callback.parameters[2].type, 'const char*')

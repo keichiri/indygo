@@ -29,7 +29,8 @@ class Generator:
 
     def _prepare_c_function_declarations(self):
         header_file_contents = self._read_header_files()
-        full_type_map = {}
+        # Small hack to allow parsing regex to be simpler (no need to match enum)
+        full_type_map = {'indy_error_t': 'int32_t'}
         c_function_declarations = {}
 
         try:
