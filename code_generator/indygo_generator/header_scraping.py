@@ -56,7 +56,7 @@ def _parse_function_declaration(declaration):
 
     result_items = scrape_result.groupdict()
     return_type = result_items['rtype']
-    function_name = result_items['fname'].lstrip('indy_')
+    function_name = result_items['fname'].replace('indy_', '', 1)
     param_string = result_items['param_string'].strip(' ')
 
     parameters = _parse_function_parameters(param_string)

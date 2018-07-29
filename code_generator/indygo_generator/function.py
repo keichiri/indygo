@@ -6,6 +6,12 @@ class FunctionParameter:
     def resolve_alias(self, type_map):
         self.type = type_map.get(self.type, self.type)
 
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f'{self.type} {self.name}'
+
 
 class CallbackDeclaration:
     def __init__(self, rtype, parameters):
@@ -16,6 +22,12 @@ class CallbackDeclaration:
         self.return_type = type_map.get(self.return_type, self.return_type)
         for param in self.parameters:
             param.resolve_alias(type_map)
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f'{self.return_type} (*cb)({", ".join(str(param) for param in self.parameters)})'
 
 
 class FunctionDeclaration:
@@ -29,3 +41,9 @@ class FunctionDeclaration:
 
         for param in self.parameters:
             param.resolve_alias(type_map)
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f'Name:{self.name}; Return type: {self.return_type}. Params: {", ".join(str(param) for param in self.parameters)}'
