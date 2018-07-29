@@ -58,7 +58,7 @@ class HeaderScrapingTests(unittest.TestCase):
         self.assertEqual(parameters[3].type, 'const char *')
         callback = parameters[4]
         self.assertTrue(isinstance(callback, CallbackDeclaration))
-        self.assertEqual(callback.rtype, 'void')
+        self.assertEqual(callback.return_type, 'void')
         self.assertEqual(len(callback.parameters), 3)
         self.assertTrue(isinstance(callback.parameters[0], FunctionParameter))
         self.assertEqual(callback.parameters[0].name, 'xcommand_handle')
