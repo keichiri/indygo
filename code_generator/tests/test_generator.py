@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, Mock
 
 from indygo_generator.generator import Generator
-from indygo_generator.function import CallbackDeclaration
+from indygo_generator.function import CallbackDeclaration, FunctionDeclaration, FunctionParameter
 
 from . import TEST_HEADER_FILE
 
@@ -87,3 +87,31 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(callback.parameters[1].type, 'int32_t')
         self.assertEqual(callback.parameters[2].name, 'signed_request_json')
         self.assertEqual(callback.parameters[2].type, 'const char*')
+
+    def test_generate_c_proxy_string(self):
+        params = [
+            FunctionParameter(name='command_handle', type='int32_t'),
+            FunctionParameter(name='command_handle', type='int32_t'),
+            FunctionParameter(name='command_handle', type='int32_t'),
+            FunctionParameter(name='command_handle', type='int32_t'),
+            CallbackDeclaration(
+                return_type='void',
+                parameters=[
+                    FunctionParameter(name='xcommand_handle', type='int32_t'),
+                    FunctionParameter(name='err', type='int32_t'),
+                    FunctionParameter(name='signed_request_json', type='const char *'),
+                ])
+        ]
+        indy_function = FunctionDeclaration(name='sign_request',
+                                            return_type='int32_t',
+                                            parameters=params)
+        expected_c_proxy_code = """
+        int32_t indy_sign_request_proxy(void *f, int32_t command_handle, int32_t wallet_handle, const char * submitter_did, const char * request_json) {
+            void (*func)(int32_t, int32_t, const char *, const char *, void (*)(int32_t, int32_t, const char *));
+            func(command_handle, wallet_handle, submitter_did, request_json, &signRequestCallback);
+        }
+        """
+
+        c_proxy_code = Generator._generate_c_proxy_code(indy_function)
+
+        self.assertEqual(expected_c_proxy_code, c_proxy_code)
