@@ -17,11 +17,19 @@ def _callback_name_camel_case(function_name):
 
 class Generator:
     @staticmethod
-    def _generate_c_proxy_code(func_declaration):
+    def _generate_c_proxy_signature(func_declaration):
         passed_params = func_declaration.parameters[:-1]
         c_proxy_declared_params = [FunctionParameter(name='f', type='void *')] + passed_params
         param_string = ', '.join([f'{p.type} {p.name}' for p in c_proxy_declared_params])
-        signature_string = f'{func_declaration.return_type} indy_{func_declaration.name}_proxy({param_string})'
+        return f'{func_declaration.return_type} indy_{func_declaration.name}_proxy({param_string})'
+
+    @staticmethod
+    def _generate_c_proxy_declaration_code(func_declaration):
+        return Generator._generate_c_proxy_signature(func_declaration) + ';'
+
+    @staticmethod
+    def _generate_c_proxy_code(func_declaration):
+        signature_string = Generator._generate_c_proxy_signature(func_declaration)
         param_types_string = ', '.join([p.type for p in func_declaration.parameters])
         cast_string = f'{func_declaration.return_type} (*func)({param_types_string}) = f;'
         callback_name = _callback_name_camel_case(func_declaration.name)
