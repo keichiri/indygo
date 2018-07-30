@@ -1,7 +1,7 @@
 import re
 
 
-from indygo_generator.function import FunctionDeclaration, FunctionParameter, CallbackDeclaration
+from indygo_generator.types import FunctionDeclaration, FunctionParameter, CallbackDeclaration
 
 
 _REPLACEMENT_TABLE = str.maketrans({'\n': ' ', '\t': ' '})

@@ -1,7 +1,7 @@
 import os
 
 from indygo_generator.header_scraping import scrape_header_file, ParsingError
-from indygo_generator.function import FunctionParameter
+from indygo_generator.types import FunctionParameter
 
 
 class GeneratorError(Exception):
@@ -37,6 +37,7 @@ class Generator:
         invocation_and_return_string = f'return func({param_names_string}, &{callback_name});'
         c_proxy_code = f'{signature_string}\n{{\n\t{cast_string}\n\t{invocation_and_return_string}\n}}'
         return c_proxy_code
+
 
     def __init__(self, header_dir_path, output_path):
         self._header_dir_path = header_dir_path
