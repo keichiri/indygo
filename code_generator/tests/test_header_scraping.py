@@ -1,7 +1,7 @@
 import unittest
 
 from indygo_generator import header_scraping
-from indygo_generator.function import FunctionParameter, CallbackDeclaration
+from indygo_generator.types import FunctionParameter, CallbackDeclaration
 
 from . import TEST_HEADER_FILE, TEST_FUNCTION_DECLARATION, TEST_PARAMETERS_STRING
 

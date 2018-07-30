@@ -126,4 +126,23 @@ indy_error_t indy_sign_request(indy_handle_t command_handle,
 """
 
 
+TEST_COMPLEX_FUNCTION_DECLARATION = """
+indy_error_t indy_issuer_create_and_store_revoc_reg(indy_handle_t command_handle,
+                                                    indy_handle_t wallet_handle,
+                                                    const char *  issuer_did,
+                                                    const char *  revoc_def_type,
+                                                    const char *  tag,
+                                                    const char *  cred_def_id,
+                                                    const char *  config_json,
+                                                    indy_handle_t tails_writer_handle,
+
+                                                    void           (*cb)(indy_handle_t xcommand_handle,
+                                                                         indy_error_t  err,
+                                                                         const char*   revoc_reg_id,
+                                                                         const char*   revoc_reg_def_json,
+                                                                         const char*   revoc_reg_entry_json)
+                                                    );
+"""
+
+
 TEST_PARAMETERS_STRING = 'indy_handle_t command_handle, indy_handle_t wallet_handle, const char * submitter_did, const char * request_json, void (*cb)(indy_handle_t xcommand_handle, indy_error_t err, const char* signed_request_json)'

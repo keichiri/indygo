@@ -3,7 +3,7 @@ import re
 from unittest.mock import patch, Mock
 
 from indygo_generator.generator import Generator
-from indygo_generator.function import CallbackDeclaration, FunctionDeclaration, FunctionParameter
+from indygo_generator.types import CallbackDeclaration, FunctionDeclaration, FunctionParameter
 
 from . import TEST_HEADER_FILE
 

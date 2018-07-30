@@ -46,6 +46,10 @@ class FunctionDeclaration:
         for param in self.parameters:
             param.resolve_alias(type_map)
 
+    @property
+    def has_complex_callback_result(self):
+        return len(self.parameters[-1].parameters) > 2
+
     def __repr__(self):
         return str(self)
 
