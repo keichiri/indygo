@@ -1,10 +1,14 @@
 import unittest
+import re
 from unittest.mock import patch, Mock
 
 from indygo_generator.generator import Generator
 from indygo_generator.function import CallbackDeclaration, FunctionDeclaration, FunctionParameter
 
 from . import TEST_HEADER_FILE
+
+
+_WHITESPACE_PATT = re.compile('\s{2,}|\n|\t')
 
 
 class GeneratorTests(unittest.TestCase):
@@ -91,9 +95,9 @@ class GeneratorTests(unittest.TestCase):
     def test_generate_c_proxy_string(self):
         params = [
             FunctionParameter(name='command_handle', type='int32_t'),
-            FunctionParameter(name='command_handle', type='int32_t'),
-            FunctionParameter(name='command_handle', type='int32_t'),
-            FunctionParameter(name='command_handle', type='int32_t'),
+            FunctionParameter(name='wallet_handle', type='int32_t'),
+            FunctionParameter(name='submitter_did', type='const char *'),
+            FunctionParameter(name='request_json', type='const char *'),
             CallbackDeclaration(
                 return_type='void',
                 parameters=[
@@ -106,12 +110,14 @@ class GeneratorTests(unittest.TestCase):
                                             return_type='int32_t',
                                             parameters=params)
         expected_c_proxy_code = """
-        int32_t indy_sign_request_proxy(void *f, int32_t command_handle, int32_t wallet_handle, const char * submitter_did, const char * request_json) {
-            void (*func)(int32_t, int32_t, const char *, const char *, void (*)(int32_t, int32_t, const char *));
-            func(command_handle, wallet_handle, submitter_did, request_json, &signRequestCallback);
+        int32_t indy_sign_request_proxy(void * f, int32_t command_handle, int32_t wallet_handle, const char * submitter_did, const char * request_json){
+            int32_t (*func)(int32_t, int32_t, const char *, const char *, void (*)(int32_t, int32_t, const char *)) = f;
+            return func(command_handle, wallet_handle, submitter_did, request_json, &signRequestCallback);
         }
         """
 
         c_proxy_code = Generator._generate_c_proxy_code(indy_function)
+        c_proxy_code = re.sub(_WHITESPACE_PATT, '', c_proxy_code)
+        expected_c_proxy_code = re.sub(_WHITESPACE_PATT, '', expected_c_proxy_code)
 
         self.assertEqual(expected_c_proxy_code, c_proxy_code)

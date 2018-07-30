@@ -14,14 +14,18 @@ class FunctionParameter:
 
 
 class CallbackDeclaration:
-    def __init__(self, rtype, parameters):
-        self.return_type = rtype
+    def __init__(self, return_type, parameters):
+        self.return_type = return_type
         self.parameters = parameters
 
     def resolve_alias(self, type_map):
         self.return_type = type_map.get(self.return_type, self.return_type)
         for param in self.parameters:
             param.resolve_alias(type_map)
+
+    @property
+    def type(self):
+        return f'{self.return_type} (*)({", ".join([param.type for param in self.parameters])})'
 
     def __repr__(self):
         return str(self)
