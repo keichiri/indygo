@@ -134,16 +134,39 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(c_proxy_declaration_code, expected_c_proxy_declaration_code)
 
     # Go code generation
-    def test_generate_correct_result_struct_definition(self):
-        expected_definition_code = """
+    def test_generate_correct_result_struct_declaration(self):
+        expected_declaration_code = """
         type signRequestResult struct {
             err int32
             signedRequestJson string
         }
         """
-        expected_definition_code = re.sub(_WHITESPACE_PATT, '', expected_definition_code)
+        expected_declaration_code = re.sub(_WHITESPACE_PATT, '', expected_declaration_code)
 
         actual_definition_code = Generator._generate_callback_result_struct_code(self.go_function)
         actual_definition_code = re.sub(_WHITESPACE_PATT, '', actual_definition_code)
 
-        self.assertEqual(expected_definition_code, actual_definition_code)
+        self.assertEqual(expected_declaration_code, actual_definition_code)
+
+    def test_generate_correct_callback_code(self):
+        expected_callback_code = r"""
+        //export signRequestCallback
+        func signRequestCallback(xcommandHandle int32, err int32, signedRequestJson *C.char) {
+            resCh, err := resolver.DeregisterCall(xcommandHandle)
+            if err != nil {
+		        log.Printf("ERROR: invalid handle in callback.\n")
+		        return
+	        }
+	        
+	        res := &signRequestResult{
+		        err: err,
+		        signedRequestJson: C.GoString(signedRequestJson),
+	        }
+	        resCh <- res
+        }
+        """
+        expected_callback_code = re.sub(_WHITESPACE_PATT, '', expected_callback_code)
+
+        actual_callback_code = Generator._generate_callback_code(self.go_function)
+        actual_callback_code = re.sub(_WHITESPACE_PATT, '', actual_callback_code)
+        self.assertEqual(expected_callback_code, actual_callback_code)

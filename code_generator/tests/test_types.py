@@ -56,6 +56,14 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(param_2.name, 'requestJson')
         self.assertEqual(param_2.type, 'string')
 
+        callback = go_function.callback
+        self.assertEqual(callback.name, 'signRequestCallback')
+        self.assertEqual(len(callback.parameters), 2)
+        self.assertEqual(callback.parameters[0].name, 'xcommandHandle')
+        self.assertEqual(callback.parameters[0].type, 'int32')
+        self.assertEqual(callback.parameters[1].name, 'err')
+        self.assertEqual(callback.parameters[1].type, 'int32')
+
         result_struct = go_function.result_struct
         self.assertEqual(result_struct.name, 'signRequestResult')
         self.assertEqual(len(result_struct.fields), 1)
@@ -78,6 +86,16 @@ class FunctionTests(unittest.TestCase):
         param_2 = params[2]
         self.assertEqual(param_2.name, 'requestJson')
         self.assertEqual(param_2.type, 'string')
+
+        callback = go_function.callback
+        self.assertEqual(callback.name, 'signRequestCallback')
+        self.assertEqual(len(callback.parameters), 3)
+        self.assertEqual(callback.parameters[0].name, 'xcommandHandle')
+        self.assertEqual(callback.parameters[0].type, 'int32')
+        self.assertEqual(callback.parameters[1].name, 'err')
+        self.assertEqual(callback.parameters[1].type, 'int32')
+        self.assertEqual(callback.parameters[2].name, 'signedRequestJson')
+        self.assertEqual(callback.parameters[2].type, '*C.char')
 
         result_struct = go_function.result_struct
         self.assertEqual(result_struct.name, 'signRequestResult')
