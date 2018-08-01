@@ -137,7 +137,7 @@ class GeneratorTests(unittest.TestCase):
     def test_generate_correct_result_struct_definition(self):
         expected_definition_code = """
         type signRequestResult struct {
-            code int32
+            err int32
             signedRequestJson string
         }
         """

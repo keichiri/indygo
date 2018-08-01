@@ -108,6 +108,7 @@ class GoFunction:
             returned_go_type = get_go_type(returned_c_field.type)
             return_types.append(returned_go_type)
 
+        result_struct_name = name[0].lower() + name[1:] + 'Result'
         result_struct_fields = []
         for returned_c_field in function_declaration.callback.parameters[1:]:
             go_type = get_go_type(returned_c_field.type)
@@ -115,7 +116,7 @@ class GoFunction:
             go_field = GoVariable(name=go_name, type=go_type)
             result_struct_fields.append(go_field)
 
-        result_struct = GoStruct(result_struct_fields)
+        result_struct = GoStruct(result_struct_name, result_struct_fields)
 
         return cls(name, params, return_types, result_struct)
 
@@ -128,5 +129,6 @@ class GoFunction:
 
 
 class GoStruct:
-    def __init__(self, fields):
+    def __init__(self, name, fields):
+        self.name = name
         self.fields = fields

@@ -57,6 +57,7 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(param_2.type, 'string')
 
         result_struct = go_function.result_struct
+        self.assertEqual(result_struct.name, 'signRequestResult')
         self.assertEqual(len(result_struct.fields), 1)
         self.assertEqual(result_struct.fields[0].name, 'err')
         self.assertEqual(result_struct.fields[0].type, 'int32')
@@ -79,6 +80,7 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(param_2.type, 'string')
 
         result_struct = go_function.result_struct
+        self.assertEqual(result_struct.name, 'signRequestResult')
         self.assertEqual(len(result_struct.fields), 2)
         self.assertEqual(result_struct.fields[0].name, 'err')
         self.assertEqual(result_struct.fields[0].type, 'int32')

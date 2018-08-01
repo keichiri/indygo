@@ -38,6 +38,16 @@ class Generator:
         c_proxy_code = f'{signature_string}\n{{\n\t{cast_string}\n\t{invocation_and_return_string}\n}}'
         return c_proxy_code
 
+    @staticmethod
+    def _generate_callback_result_struct_code(go_function):
+        result_struct = go_function.result_struct
+
+        field_declarations = []
+        for field in result_struct.fields:
+            field_declarations.append(f'{field.name} {field.type}')
+        line_sep = "\n\t"
+        code = f'type {result_struct.name} struct {{\n\t{line_sep.join(field_declarations)}\n}}'
+        return code
 
     def __init__(self, header_dir_path, output_path):
         self._header_dir_path = header_dir_path
