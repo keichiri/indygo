@@ -3,7 +3,7 @@ import re
 from unittest.mock import patch, Mock
 
 from indygo_generator.generator import Generator
-from indygo_generator.types import CallbackDeclaration, FunctionDeclaration, FunctionParameter
+from indygo_generator.types import CallbackDeclaration, FunctionDeclaration, FunctionParameter, GoFunction
 
 from . import TEST_HEADER_FILE
 
@@ -29,6 +29,8 @@ class GeneratorTests(unittest.TestCase):
         self.indy_function = FunctionDeclaration(name='sign_request',
                                                  return_type='int32_t',
                                                  parameters=params)
+
+        self.go_function = GoFunction.create_from_indy_declaration(self.indy_function)
 
     @patch.object(Generator, '_read_header_files')
     def test_prepare_c_function_declarations(self, read_header_files_patch):
@@ -130,3 +132,18 @@ class GeneratorTests(unittest.TestCase):
         c_proxy_declaration_code = Generator._generate_c_proxy_declaration_code(self.indy_function)
 
         self.assertEqual(c_proxy_declaration_code, expected_c_proxy_declaration_code)
+
+    # Go code generation
+    def test_generate_correct_result_struct_definition(self):
+        expected_definition_code = """
+        type signRequestResult struct {
+            code int32
+            signedRequestJson string
+        }
+        """
+        expected_definition_code = re.sub(_WHITESPACE_PATT, '', expected_definition_code)
+
+        actual_definition_code = Generator._generate_callback_result_struct_code(self.go_function)
+        actual_definition_code = re.sub(_WHITESPACE_PATT, '', actual_definition_code)
+
+        self.assertEqual(expected_definition_code, actual_definition_code)
