@@ -10,9 +10,29 @@ _C_TO_GO_TYPE_MAP = {
 }
 
 
+_C_TO_CGO_TYPE_MAP = {
+    'char *': '*C.char',
+}
+
+
+_CGO_TO_GO_CONVERSIONS = {
+    '*C.char': 'C.GoString',
+}
+
+
 def get_go_type(c_type):
     c_type = c_type.replace('const', '').strip()
     return _C_TO_GO_TYPE_MAP[c_type]
+
+
+def get_cgo_type(c_type):
+    c_type = c_type.replace('const', '').strip()
+    cgo_type = _C_TO_CGO_TYPE_MAP.get(c_type)
+    return cgo_type or _C_TO_GO_TYPE_MAP[c_type]
+
+
+def cgo_to_go_conversion(cgo_type):
+    return _CGO_TO_GO_CONVERSIONS.get(cgo_type)
 
 
 class FunctionParameter:
@@ -108,6 +128,15 @@ class GoFunction:
             returned_go_type = get_go_type(returned_c_field.type)
             return_types.append(returned_go_type)
 
+        callback_name = name[0].lower() + name[1:] + 'Callback'
+        callback_parameters = []
+        for param in function_declaration.callback.parameters:
+            go_param_name = to_camel_case(param.name)
+            cgo_param_type = get_cgo_type(param.type)
+            cgo_param = GoVariable(go_param_name, cgo_param_type)
+            callback_parameters.append(cgo_param)
+        callback = GoCallback(callback_name, callback_parameters)
+
         result_struct_name = name[0].lower() + name[1:] + 'Result'
         result_struct_fields = []
         for returned_c_field in function_declaration.callback.parameters[1:]:
@@ -118,14 +147,21 @@ class GoFunction:
 
         result_struct = GoStruct(result_struct_name, result_struct_fields)
 
-        return cls(name, params, return_types, result_struct)
+        return cls(name, params, return_types, callback, result_struct)
 
 
-    def __init__(self, name, parameters, return_types, result_struct):
+    def __init__(self, name, parameters, return_types, callback, result_struct):
         self.name = name
         self.parameters = parameters
         self.return_types = return_types
+        self.callback = callback
         self.result_struct = result_struct
+
+
+class GoCallback:
+    def __init__(self, name, parameters):
+        self.name = name
+        self.parameters = parameters
 
 
 class GoStruct:

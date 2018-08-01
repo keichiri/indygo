@@ -1,7 +1,7 @@
 import os
 
 from indygo_generator.header_scraping import scrape_header_file, ParsingError
-from indygo_generator.types import FunctionParameter
+from indygo_generator.types import FunctionParameter, cgo_to_go_conversion
 
 
 class GeneratorError(Exception):
@@ -13,6 +13,7 @@ def _callback_name_camel_case(function_name):
     camelcased_words = [words[0]]
     camelcased_words.extend([word.title() for word in words[1:]])
     return ''.join(camelcased_words) + 'Callback'
+
 
 
 class Generator:
@@ -48,6 +49,38 @@ class Generator:
         line_sep = "\n\t"
         code = f'type {result_struct.name} struct {{\n\t{line_sep.join(field_declarations)}\n}}'
         return code
+
+    @staticmethod
+    def _generate_callback_code(go_function):
+        callback = go_function.callback
+        export_string = f'//export {callback.name}'
+        param_string = ', '.join([f'{param.name} {param.type}' for param in callback.parameters])
+        signature_string = f'func {callback.name}({param_string})'
+        first_param_name = callback.parameters[0].name
+        deregister_call_string = _DEREGISTER_CALL_TEMPLATE.format(first_param_name)
+
+        result_struct = go_function.result_struct
+        field_strings = []
+        for i, field in enumerate(result_struct.fields):
+            # skipping command handle
+            arg = callback.parameters[i+1]
+            cgo_to_go_conversion_function = cgo_to_go_conversion(arg.type)
+            if cgo_to_go_conversion_function:
+                field_string = f'{field.name}: {cgo_to_go_conversion_function}({arg.name})'
+            else:
+                field_string = f'{field.name}: {arg.name}'
+
+            field_strings.append(field_string)
+
+        join_string = ",\n\t\t"
+        res_init_string = f'res := &{result_struct.name}{{\n\t\t{join_string.join(field_strings)},\n\t}}'
+        res_send_string = 'resCh <- res'
+
+        full_code = f'{export_string}\n{signature_string} {{\n\t{deregister_call_string}{_DEREGISTER_CALL_ERR_CHECK}\n\t{res_init_string}\n\t{res_send_string}\n}}'
+        print(full_code)
+
+        return full_code
+
 
     def __init__(self, header_dir_path, output_path):
         self._header_dir_path = header_dir_path
@@ -88,3 +121,12 @@ class Generator:
 
         self._c_function_declarations = c_function_declarations
 
+
+
+_DEREGISTER_CALL_TEMPLATE = 'resCh, err := resolver.DeregisterCall({})'
+_DEREGISTER_CALL_ERR_CHECK = """
+    if err != nil {
+        log.Printf("ERROR: invalid handle in callback.\\n")
+        return
+    }
+"""
