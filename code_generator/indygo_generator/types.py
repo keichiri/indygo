@@ -63,27 +63,6 @@ class FunctionDeclaration:
         for param in self.parameters:
             param.resolve_alias(type_map)
 
-    def go_function(self):
-        name = to_camel_case(self.name)
-        name = name[0].title() + name[1:]
-
-        # skipping command handle and callback
-        c_params = self.parameters[1:-1]
-        go_params = []
-        for c_param in c_params:
-            go_param_type = get_go_type(c_param.type)
-            go_param_name = to_camel_case(c_param.name)
-            go_param = GoFunctionParameter(go_param_name, go_param_type)
-            go_params.append(go_param)
-
-        return_types = ['error']
-        additional_returned_types = self.callback_result_additional_types
-        for returned_type in additional_returned_types:
-            go_type = get_go_type(returned_type)
-            return_types.append(go_type)
-
-        return GoFunction(name, go_params, return_types)
-
     @property
     def has_complex_callback_result(self):
         return len(self.parameters[-1].parameters) > 2
@@ -92,6 +71,9 @@ class FunctionDeclaration:
     def callback_result_additional_types(self):
         return self.parameters[-1].parameters[2:]
 
+    @property
+    def callback(self):
+        return self.parameters[-1]
 
     def __repr__(self):
         return str(self)
@@ -100,14 +82,51 @@ class FunctionDeclaration:
         return f'Name:{self.name}; Return type: {self.return_type}. Params: {", ".join(str(param) for param in self.parameters)}'
 
 
-class GoFunctionParameter:
+class GoVariable:
+    # NOTE - using "variable" as both a function parameter and a struct field, for simplicity
     def __init__(self, name, type):
         self.name = name
         self.type = type
 
 
 class GoFunction:
-    def __init__(self, name, parameters, return_types):
+    @classmethod
+    def create_from_indy_declaration(cls, function_declaration):
+        name = to_camel_case(function_declaration.name)
+        name = name[0].title() + name[1:]
+
+        params = []
+        # skipping handle and callback - not visible in public API
+        for c_param in function_declaration.parameters[1:-1]:
+            go_param_name = to_camel_case(c_param.name)
+            go_param_type = get_go_type(c_param.type)
+            go_param = GoVariable(name=go_param_name, type=go_param_type)
+            params.append(go_param)
+
+        return_types = ['error']
+        for returned_c_field in function_declaration.callback.parameters[2:]:
+            returned_go_type = get_go_type(returned_c_field.type)
+            return_types.append(returned_go_type)
+
+        result_struct_fields = []
+        for returned_c_field in function_declaration.callback.parameters[1:]:
+            go_type = get_go_type(returned_c_field.type)
+            go_name = to_camel_case(returned_c_field.name)
+            go_field = GoVariable(name=go_name, type=go_type)
+            result_struct_fields.append(go_field)
+
+        result_struct = GoStruct(result_struct_fields)
+
+        return cls(name, params, return_types, result_struct)
+
+
+    def __init__(self, name, parameters, return_types, result_struct):
         self.name = name
         self.parameters = parameters
         self.return_types = return_types
+        self.result_struct = result_struct
+
+
+class GoStruct:
+    def __init__(self, fields):
+        self.fields = fields
