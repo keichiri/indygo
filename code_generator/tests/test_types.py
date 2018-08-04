@@ -70,11 +70,13 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result_struct.fields[0].name, 'err')
         self.assertEqual(result_struct.fields[0].type, 'int32')
 
+        self.assertEqual(go_function.indy_function, self.simple_indy_function)
+
     def test_go_function_complex(self):
         go_function = GoFunction.create_from_indy_declaration(self.complex_indy_function)
 
         self.assertEqual(go_function.name, 'SignRequest')
-        self.assertEqual(go_function.return_types, ['error', 'string'])
+        self.assertEqual(go_function.return_types, ['string', 'error'])
         params = go_function.parameters
         self.assertEqual(len(params), 3)
         param_0 = params[0]
@@ -104,3 +106,5 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result_struct.fields[0].type, 'int32')
         self.assertEqual(result_struct.fields[1].name, 'signedRequestJson')
         self.assertEqual(result_struct.fields[1].type, 'string')
+
+        self.assertEqual(go_function.indy_function, self.complex_indy_function)

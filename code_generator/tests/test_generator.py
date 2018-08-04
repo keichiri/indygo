@@ -3,7 +3,7 @@ import re
 from unittest.mock import patch, Mock
 
 from indygo_generator.generator import Generator
-from indygo_generator.types import CallbackDeclaration, FunctionDeclaration, FunctionParameter, GoFunction
+from indygo_generator.types import CallbackDeclaration, FunctionDeclaration, FunctionParameter, GoFunction, GoVariable
 
 from . import TEST_HEADER_FILE
 
@@ -169,4 +169,85 @@ class GeneratorTests(unittest.TestCase):
 
         actual_callback_code = Generator._generate_callback_code(self.go_function)
         actual_callback_code = re.sub(_WHITESPACE_PATT, '', actual_callback_code)
+
         self.assertEqual(expected_callback_code, actual_callback_code)
+
+    def test_generate_correct_variable_setup_code_for_int32(self):
+        variable = GoVariable(name='commandHandle', type='int32')
+
+        expected_variable_setup_code = """
+        var c_commandHandle C.int32_t
+        c_commandHandle = C.int32_t(commandHandle)
+        """
+        expected_variable_setup_code = re.sub(_WHITESPACE_PATT, '', expected_variable_setup_code)
+
+        cgo_var_name, actual_variable_setup_code = Generator._generate_variable_setup_code(variable)
+        actual_variable_setup_code = re.sub(_WHITESPACE_PATT, '', actual_variable_setup_code)
+
+        self.assertEqual(cgo_var_name, 'c_commandHandle')
+        self.assertEqual(expected_variable_setup_code, actual_variable_setup_code)
+
+    def test_generate_correct_variable_setup_code_for_string(self):
+        variable = GoVariable(name='requestJson', type='string')
+
+        expected_variable_setup_code = """
+        var c_requestJson *C.char
+        if requestJson != "" {
+            c_requestJson = C.CString(requestJson)
+            defer C.free(unsafe.Pointer(c_requestJson))
+        }
+        """
+        expected_variable_setup_code = re.sub(_WHITESPACE_PATT, '', expected_variable_setup_code)
+
+        cgo_var_name, actual_variable_setup_code = Generator._generate_variable_setup_code(variable)
+        actual_variable_setup_code = re.sub(_WHITESPACE_PATT, '', actual_variable_setup_code)
+
+        self.assertEqual(cgo_var_name, 'c_requestJson')
+        self.assertEqual(expected_variable_setup_code, actual_variable_setup_code)
+
+    def test_generate_correct_api_function_code(self):
+        expected_api_function_code = """
+        func SignRequest(walletHandle int32, submitterDid string, requestJson string) (string, error) {
+            pointer, commandHandle, resCh, err := resolver.RegisterCall("indy_sign_request")
+            if err != nil {
+                return "", err
+            }
+
+            var c_walletHandle C.int32_t
+            c_walletHandle = C.int32_t(walletHandle)
+
+            var c_submitterDid *C.char
+            if submitterDid != "" {
+                c_submitterDid = C.CString(submitterDid)
+                defer C.free(unsafe.Pointer(c_submitterDid))
+            }
+
+            var c_requestJson *C.char
+            if requestJson != "" {
+                c_requestJson = C.CString(requestJson)
+                defer C.free(unsafe.Pointer(c_requestJson))
+            }
+            
+            resCode := C.indy_sign_request_proxy(c_walletHandle, c_submitterDid, c_requestJson)
+            if resCode != 0 {
+                err = fmt.Errorf("Libindy returned code: %d", resCode)
+                return "", err
+            }
+            
+            _res := <- resCh
+            res := _res.(*signRequestResult)
+            
+            if res.err != 0 {
+                err = fmt.Errorf("Libindy returned code: %d", resCode)
+                return "", err
+            }
+            
+            return res.signedRequestJson, nil
+        }
+        """
+        expected_api_function_code = re.sub(_WHITESPACE_PATT, '', expected_api_function_code)
+
+        actual_api_function_code = Generator._generate_api_function_code(self.go_function)
+        actual_api_function_code = re.sub(_WHITESPACE_PATT, '', actual_api_function_code)
+
+        self.assertEqual(expected_api_function_code, actual_api_function_code)
