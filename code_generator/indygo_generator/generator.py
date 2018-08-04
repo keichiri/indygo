@@ -1,7 +1,8 @@
 import os
 
 from indygo_generator.header_scraping import scrape_header_file, ParsingError
-from indygo_generator.types import FunctionParameter, cgo_to_go_conversion
+from indygo_generator.types import (FunctionParameter, cgo_to_go_conversion, get_cgo_type_for_go_type,
+                                    go_to_cgo_conversion, get_default_go_value, GoVariable)
 
 
 class GeneratorError(Exception):
@@ -77,10 +78,66 @@ class Generator:
         res_send_string = 'resCh <- res'
 
         full_code = f'{export_string}\n{signature_string} {{\n\t{deregister_call_string}{_DEREGISTER_CALL_ERR_CHECK}\n\t{res_init_string}\n\t{res_send_string}\n}}'
-        print(full_code)
 
         return full_code
 
+    @staticmethod
+    def _generate_variable_setup_code(go_variable):
+        cgo_type = get_cgo_type_for_go_type(go_variable.type)
+
+        cgo_var_name = f'c_{go_variable.name}'
+        cgo_var_declaration = f'var {cgo_var_name} {cgo_type}\n\t'
+
+        if go_variable.type == 'string':
+            cgo_var_setup = f'if {go_variable.name} != "" {{\n\t\t{cgo_var_name} = C.CString({go_variable.name})\n\t\tdefer C.free(unsafe.Pointer({cgo_var_name}))\n\t}}'
+        else:
+            cgo_type_conversion = go_to_cgo_conversion(go_variable.type)
+            if cgo_type_conversion:
+                cgo_var_setup = f'{cgo_var_name} = {cgo_type_conversion}({go_variable.name})'
+            else:
+                cgo_var_setup = f'{cgo_var_name} = {go_variable.name}'
+
+        code = f'\t{cgo_var_declaration}\n\t{cgo_var_setup}'
+        return cgo_var_name, code
+
+    @staticmethod
+    def _generate_api_function_code(go_function):
+        param_string = ', '.join([f'{param.name} {param.type}' for param in go_function.parameters])
+        signature_string = f'func {go_function.name}({param_string}) ({", ".join(rtype for rtype in go_function.return_types)})'
+        register_call_string = _REGISTER_CALL_TEMPLATE.format(go_function.indy_function.name)
+        returned_values_if_err = [get_default_go_value(return_type) for return_type in go_function.return_types[:-1]]
+        returned_values_if_err.append('err')
+        return_string_if_err = f'return {", ".join(returned_values_if_err)}'
+        err_check_string = f'if err != nil {{\n\t\t{return_string_if_err}\n\t}}'
+
+        cgo_var_names = []
+        cgo_var_setup_strings = []
+        for var in go_function.parameters:
+            cgo_var_name, cgo_var_setup_string = Generator._generate_variable_setup_code(var)
+            cgo_var_names.append(cgo_var_name)
+            cgo_var_setup_strings.append(cgo_var_setup_string)
+
+        cgo_var_setup_string = '\n\n\t'.join(cgo_var_setup_strings)
+
+        call_string = f'resCode := C.indy_{go_function.indy_function.name}_proxy({", ".join(cgo_var_names)})'
+        call_check_string = f'if resCode != 0 {{\n\terr = fmt.Errorf("Libindy returned code: %d", resCode)\n\t{return_string_if_err}\n\t}}'
+
+        result_retrieval_string = f'_res := <- resCh\n\tres := _res.(*{go_function.result_struct.name})'
+
+        error_code_field_name = go_function.result_struct.fields[0].name
+        error_code_check = f'if res.{error_code_field_name} != 0 {{\n\t\terr = fmt.Errorf("Libindy returned code: %d", resCode)\n\t{return_string_if_err}\n\t}}'
+
+        returned_values = []
+        for field in go_function.result_struct.fields[1:]:
+            returned_values.append(f'res.{field.name}')
+        returned_values.append('nil')
+
+        return_string = f'return {", ".join(returned_values)}'
+
+        code = (f'{signature_string} {{\n\t{register_call_string}\n\t{err_check_string}\n\n\t{cgo_var_setup_string}\n\n\t'
+                f'{call_string}\n\t{call_check_string}\n\n\t{result_retrieval_string}\n\n\t{error_code_check}\n\n\t{return_string}\n}}')
+
+        return code
 
     def __init__(self, header_dir_path, output_path):
         self._header_dir_path = header_dir_path
@@ -123,6 +180,7 @@ class Generator:
 
 
 
+_REGISTER_CALL_TEMPLATE = 'pointer, commandHandle, resCh, err := resolver.RegisterCall("indy_{}")'
 _DEREGISTER_CALL_TEMPLATE = 'resCh, err := resolver.DeregisterCall({})'
 _DEREGISTER_CALL_ERR_CHECK = """
     if err != nil {

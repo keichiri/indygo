@@ -20,6 +20,24 @@ _CGO_TO_GO_CONVERSIONS = {
 }
 
 
+_GO_TO_CGO_TYPE_MAP = {
+    'string': '*C.char',
+    'int32': 'C.int32_t',
+}
+
+
+_GO_TO_CGO_CONVERSIONS = {
+    'string': 'C.CString',
+    'int32': 'C.int32_t',
+}
+
+
+_DEFAULT_GO_VALUES = {
+    'string': '\"\"',
+    'int32': 0,
+}
+
+
 def get_go_type(c_type):
     c_type = c_type.replace('const', '').strip()
     return _C_TO_GO_TYPE_MAP[c_type]
@@ -31,8 +49,20 @@ def get_cgo_type(c_type):
     return cgo_type or _C_TO_GO_TYPE_MAP[c_type]
 
 
+def get_cgo_type_for_go_type(go_type):
+    return _GO_TO_CGO_TYPE_MAP[go_type]
+
+
 def cgo_to_go_conversion(cgo_type):
     return _CGO_TO_GO_CONVERSIONS.get(cgo_type)
+
+
+def go_to_cgo_conversion(go_type):
+    return _GO_TO_CGO_CONVERSIONS.get(go_type)
+
+
+def get_default_go_value(go_type):
+    return _DEFAULT_GO_VALUES[go_type]
 
 
 class FunctionParameter:
@@ -123,10 +153,11 @@ class GoFunction:
             go_param = GoVariable(name=go_param_name, type=go_param_type)
             params.append(go_param)
 
-        return_types = ['error']
+        return_types = []
         for returned_c_field in function_declaration.callback.parameters[2:]:
             returned_go_type = get_go_type(returned_c_field.type)
             return_types.append(returned_go_type)
+        return_types.append('error')
 
         callback_name = name[0].lower() + name[1:] + 'Callback'
         callback_parameters = []
@@ -147,15 +178,16 @@ class GoFunction:
 
         result_struct = GoStruct(result_struct_name, result_struct_fields)
 
-        return cls(name, params, return_types, callback, result_struct)
+        return cls(name, params, return_types, callback, result_struct, function_declaration)
 
 
-    def __init__(self, name, parameters, return_types, callback, result_struct):
+    def __init__(self, name, parameters, return_types, callback, result_struct, indy_function):
         self.name = name
         self.parameters = parameters
         self.return_types = return_types
         self.callback = callback
         self.result_struct = result_struct
+        self.indy_function = indy_function
 
 
 class GoCallback:
