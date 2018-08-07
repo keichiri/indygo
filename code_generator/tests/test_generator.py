@@ -5,7 +5,7 @@ from unittest.mock import patch, Mock
 from indygo_generator.generator import Generator
 from indygo_generator.types import CallbackDeclaration, FunctionDeclaration, FunctionParameter, GoFunction, GoVariable
 
-from . import TEST_HEADER_FILE
+from . import TEST_HEADER_FILE, TEST_C_FILE_CONTENT
 
 
 _WHITESPACE_PATT = re.compile('\s{2,}|\n|\t')
@@ -114,7 +114,7 @@ class GeneratorTests(unittest.TestCase):
 
     def test_generate_c_proxy_string(self):
         expected_c_proxy_code = """
-        int32_t indy_sign_request_proxy(void * f, int32_t command_handle, int32_t wallet_handle, const char * submitter_did, const char * request_json){
+        int32_t indy_sign_request_proxy(void * f, int32_t command_handle, int32_t wallet_handle, const char * submitter_did, const char * request_json) {
             int32_t (*func)(int32_t, int32_t, const char *, const char *, void (*)(int32_t, int32_t, const char *)) = f;
             return func(command_handle, wallet_handle, submitter_did, request_json, &signRequestCallback);
         }
@@ -149,13 +149,13 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(expected_declaration_code, actual_definition_code)
 
     def test_generate_correct_callback_code(self):
+        expected_extern_declaration = 'extern void signRequestCallback(int32_t, int32_t, char *);'
         expected_callback_code = r"""
         //export signRequestCallback
         func signRequestCallback(xcommandHandle int32, err int32, signedRequestJson *C.char) {
             resCh, err := resolver.DeregisterCall(xcommandHandle)
             if err != nil {
-		        log.Printf("ERROR: invalid handle in callback.\n")
-		        return
+		        panic("Invalid handle in callback")
 	        }
 	        
 	        res := &signRequestResult{
@@ -167,9 +167,10 @@ class GeneratorTests(unittest.TestCase):
         """
         expected_callback_code = re.sub(_WHITESPACE_PATT, '', expected_callback_code)
 
-        actual_callback_code = Generator._generate_callback_code(self.go_function)
+        extern_declaration, actual_callback_code = Generator._generate_callback_code(self.go_function)
         actual_callback_code = re.sub(_WHITESPACE_PATT, '', actual_callback_code)
 
+        self.assertEqual(expected_extern_declaration, extern_declaration)
         self.assertEqual(expected_callback_code, actual_callback_code)
 
     def test_generate_correct_variable_setup_code_for_int32(self):
@@ -228,7 +229,7 @@ class GeneratorTests(unittest.TestCase):
                 defer C.free(unsafe.Pointer(c_requestJson))
             }
             
-            resCode := C.indy_sign_request_proxy(c_walletHandle, c_submitterDid, c_requestJson)
+            resCode := C.indy_sign_request_proxy(commandHandle, c_walletHandle, c_submitterDid, c_requestJson)
             if resCode != 0 {
                 err = fmt.Errorf("Libindy returned code: %d", resCode)
                 return "", err
@@ -238,7 +239,7 @@ class GeneratorTests(unittest.TestCase):
             res := _res.(*signRequestResult)
             
             if res.err != 0 {
-                err = fmt.Errorf("Libindy returned code: %d", resCode)
+                err = fmt.Errorf("Libindy returned code: %d", res.err)
                 return "", err
             }
             
@@ -251,3 +252,111 @@ class GeneratorTests(unittest.TestCase):
         actual_api_function_code = re.sub(_WHITESPACE_PATT, '', actual_api_function_code)
 
         self.assertEqual(expected_api_function_code, actual_api_function_code)
+
+    def test_generate_code(self):
+        indy_file_name = 'ledger.h'
+        declarations = [self.indy_function]
+        expected_c_code = re.sub(_WHITESPACE_PATT, '', EXPECTED_C_CODE)
+        expected_go_code = re.sub(_WHITESPACE_PATT, '', EXPECTED_GO_CODE)
+
+        c_code, go_code = Generator._generate_code(indy_file_name, declarations)
+        c_code = re.sub(_WHITESPACE_PATT, '', c_code)
+        go_code = re.sub(_WHITESPACE_PATT, '', go_code)
+
+        print(go_code)
+        print(expected_go_code)
+        self.assertEqual(c_code, expected_c_code)
+        self.assertEqual(go_code, expected_go_code)
+
+
+
+EXPECTED_C_CODE = """
+#include <stdint.h>
+
+
+extern void signRequestCallback(int32_t, int32_t, char *);
+
+
+int32_t indy_sign_request_proxy(void * f, int32_t command_handle, int32_t wallet_handle, const char * submitter_did, const char * request_json) {
+    int32_t (*func)(int32_t, int32_t, const char *, const char *, void (*)(int32_t, int32_t, const char *)) = f;
+    return func(command_handle, wallet_handle, submitter_did, request_json, &signRequestCallback);
+}
+"""
+
+
+EXPECTED_GO_CODE = """
+package indy
+
+/*
+#include <stdlib.h>
+#include <stdint.h>
+
+int32_t indy_sign_request_proxy(void * f, int32_t command_handle, int32_t wallet_handle, const char * submitter_did, const char * request_json);
+*/
+import "C"
+
+import (
+    "fmt"
+    "unsafe"
+)
+
+
+func SignRequest(walletHandle int32, submitterDid string, requestJson string) (string, error) {
+	pointer, commandHandle, resCh, err := resolver.RegisterCall("indy_sign_request")
+	if err != nil {
+	    return "", err
+	}
+	
+	var c_walletHandle C.int32_t
+	c_walletHandle = C.int32_t(walletHandle)
+	
+	var c_submitterDid *C.char
+	if submitterDid != "" {
+	    c_submitterDid = C.CString(submitterDid)
+	    defer C.free(unsafe.Pointer(c_submitterDid))
+	}
+	
+	var c_requestJson *C.char
+	if requestJson != "" {
+	    c_requestJson = C.CString(requestJson)
+	    defer C.free(unsafe.Pointer(c_requestJson))
+	}
+	
+	resCode := C.indy_sign_request_proxy(commandHandle, c_walletHandle, c_submitterDid, c_requestJson)
+	if resCode != 0 {
+	    err = fmt.Errorf("Libindy returned code: %d", resCode)
+	    return "", err
+	}
+	
+	_res := <- resCh
+	res := _res.(*signRequestResult)
+	
+	if res.err != 0 {
+	    err = fmt.Errorf("Libindy returned code: %d", res.err)
+	    return "", err
+	}
+	
+	return res.signedRequestJson, nil
+}
+
+
+type signRequestResult struct {
+    err int32
+    signedRequestJson string
+}
+
+
+//export signRequestCallback
+func signRequestCallback(xcommandHandle int32, err int32, signedRequestJson *C.char) {
+    resCh, err := resolver.DeregisterCall(xcommandHandle)
+    if err != nil {
+        panic("Invalid handle in callback")
+    }
+    
+    res := &signRequestResult{
+        err: err,
+        signedRequestJson: C.GoString(signedRequestJson),
+    }
+    resCh <- res
+}
+"""

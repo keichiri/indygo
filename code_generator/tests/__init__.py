@@ -146,3 +146,18 @@ indy_error_t indy_issuer_create_and_store_revoc_reg(indy_handle_t command_handle
 
 
 TEST_PARAMETERS_STRING = 'indy_handle_t command_handle, indy_handle_t wallet_handle, const char * submitter_did, const char * request_json, void (*cb)(indy_handle_t xcommand_handle, indy_error_t err, const char* signed_request_json)'
+
+
+
+TEST_C_FILE_CONTENT = """
+include <stdint.h>
+
+
+extern issuerCreateAndStoreRevocRegCallback(int32_t, int32_t, char *, char *, char *);
+
+
+int32_t indy_issuer_create_and_store_revoc_reg_proxy(void * f, int32_t command_handle, int32_t wallet_handle, char * issuer_did, char * revoc_def_type, char * tag, char * cred_def_id, char * config_json, int32_t tails_writer_handle) {
+    int32_t (*func)(int32_t, int32_t, char *, char *, char *, char *, char *, int32_t, void *) = f;
+    return func(command_handle, wallet_handle, issuer_did, revoc_def_type, tag, cred_def_id, config_json, tails_writer_handle) = f;
+}
+"""

@@ -129,6 +129,6 @@ def _is_function_parameter(parameter_string):
 
 
 def _parse_callback_parameter(parameter_string):
-    _, return_type, parameters = _parse_function_declaration(parameter_string + ';')
-    return CallbackDeclaration(return_type, parameters)
+    name, return_type, parameters = _parse_function_declaration(parameter_string + ';')
+    return CallbackDeclaration(name, return_type, parameters)
 

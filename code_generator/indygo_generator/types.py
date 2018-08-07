@@ -7,6 +7,17 @@ _C_TO_GO_TYPE_MAP = {
     'int16_t': 'int16',
     'uint16_t': 'uint16',
     'char *': 'string',
+    'char*': 'string',
+    '*uint8_t': 'string',
+    'uint8_t*': 'string',
+    'uint8_t *': 'string',
+    'unsigned int': 'uint32',
+    'indy_u8_t *': 'string',
+    'indy_u8_t*': 'string',
+    'unsigned long long': 'uint64',
+    'int32_t *': '*int32',
+    'char **': '*string',
+    'long long': 'int64',
 }
 
 
@@ -23,6 +34,9 @@ _CGO_TO_GO_CONVERSIONS = {
 _GO_TO_CGO_TYPE_MAP = {
     'string': '*C.char',
     'int32': 'C.int32_t',
+    'uint32': 'C.uint32_t',
+    'uint64': 'C.uint64_t',
+    'int64': 'C.int64_t',
 }
 
 
@@ -34,7 +48,18 @@ _GO_TO_CGO_CONVERSIONS = {
 
 _DEFAULT_GO_VALUES = {
     'string': '\"\"',
-    'int32': 0,
+    'int32': '0',
+    'uint32': '0',
+    'uint64': '0',
+}
+
+
+# Note - this is not strictly CGo, since integers are same
+_CGO_TO_C_TYPE_MAP = {
+    '*C.char': 'char *',
+    'int32': 'int32_t',
+    'uint32': 'uint32_t',
+    'int32_t': 'int32',
 }
 
 
@@ -50,6 +75,8 @@ def get_cgo_type(c_type):
 
 
 def get_cgo_type_for_go_type(go_type):
+    if 'func' in go_type:
+        return 'unsafe.Pointer'
     return _GO_TO_CGO_TYPE_MAP[go_type]
 
 
@@ -65,13 +92,24 @@ def get_default_go_value(go_type):
     return _DEFAULT_GO_VALUES[go_type]
 
 
+def get_c_type_for_cgo_type(cgo_type):
+    return _CGO_TO_C_TYPE_MAP[cgo_type]
+
+
 class FunctionParameter:
     def __init__(self, name, type):
         self.name = name
         self.type = type
 
     def resolve_alias(self, type_map):
-        self.type = type_map.get(self.type, self.type)
+        queried_type = self.type.replace('const', '').strip()
+        pointer_level = queried_type.count('*')
+        queried_type = queried_type.replace('*', '').strip()
+        aliased_type = type_map.get(queried_type)
+        if not aliased_type:
+            return
+
+        self.type = aliased_type + ' ' + '*' * pointer_level
 
     def __repr__(self):
         return str(self)
@@ -81,14 +119,20 @@ class FunctionParameter:
 
 
 class CallbackDeclaration:
-    def __init__(self, return_type, parameters):
+    def __init__(self, name, return_type, parameters):
         self.return_type = return_type
         self.parameters = parameters
+        self.name = name
 
     def resolve_alias(self, type_map):
         self.return_type = type_map.get(self.return_type, self.return_type)
         for param in self.parameters:
             param.resolve_alias(type_map)
+
+    def get_go_type_as_string(self):
+        go_param_types = [get_go_type(param.type) for param in self.parameters]
+        go_return_type = get_go_type(self.return_type)
+        return f'func ({", ".join(go_param_types)}) ({go_return_type})'
 
     @property
     def type(self):
@@ -149,7 +193,13 @@ class GoFunction:
         # skipping handle and callback - not visible in public API
         for c_param in function_declaration.parameters[1:-1]:
             go_param_name = to_camel_case(c_param.name)
-            go_param_type = get_go_type(c_param.type)
+            if isinstance(c_param, CallbackDeclaration):
+                go_param_name = go_param_name.replace('*', '')
+                go_param_type = c_param.get_go_type_as_string()
+            else:
+                go_param_type = get_go_type(c_param.type)
+            if go_param_name == 'type':
+                go_param_name = 'xtype'
             go_param = GoVariable(name=go_param_name, type=go_param_type)
             params.append(go_param)
 

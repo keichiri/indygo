@@ -1,8 +1,8 @@
 import os
 
 from indygo_generator.header_scraping import scrape_header_file, ParsingError
-from indygo_generator.types import (FunctionParameter, cgo_to_go_conversion, get_cgo_type_for_go_type,
-                                    go_to_cgo_conversion, get_default_go_value, GoVariable)
+from indygo_generator.types import (FunctionParameter, cgo_to_go_conversion, get_cgo_type_for_go_type, GoFunction,
+                                    go_to_cgo_conversion, get_default_go_value, get_c_type_for_cgo_type, GoVariable)
 
 
 class GeneratorError(Exception):
@@ -16,8 +16,54 @@ def _callback_name_camel_case(function_name):
     return ''.join(camelcased_words) + 'Callback'
 
 
-
 class Generator:
+    @staticmethod
+    def _generate_code(indy_file_name, declarations):
+        c_proxy_declarations = []
+        extern_declarations = []
+        c_proxy_definitions = []
+        go_code_sections = []
+
+        for indy_function_declaration in declarations:
+            go_function = GoFunction.create_from_indy_declaration(indy_function_declaration)
+            c_proxy_declarations.append(Generator._generate_c_proxy_declaration_code(indy_function_declaration))
+            cb_extern_declaration, callback_code = Generator._generate_callback_code(go_function)
+            c_proxy_code = Generator._generate_c_proxy_code(indy_function_declaration)
+            extern_declarations.append(cb_extern_declaration)
+            c_proxy_definitions.append(c_proxy_code)
+
+            api_function_code = Generator._generate_api_function_code(go_function)
+            result_struct_code = Generator._generate_callback_result_struct_code(go_function)
+            go_code = '\n\n'.join([api_function_code, result_struct_code, callback_code])
+            go_code_sections.append(go_code)
+
+        include_code = f'#include <stdint.h>'
+        extern_declarations_code = '\n'.join(extern_declarations)
+        c_proxy_definitions_code = '\n\n\n'.join(c_proxy_definitions)
+
+        line_sep = "\n"
+        go_file_top = f"""
+        package indy
+        
+        /*
+        #include <stdlib.h>
+        #include <stdint.h>
+        
+        {line_sep.join(c_proxy_declarations)}
+        */
+        import "C"
+        
+        import (
+            "fmt"
+            "unsafe"
+        )
+        
+        """
+
+        c_code = '\n\n\n'.join([include_code, extern_declarations_code, c_proxy_definitions_code])
+        go_code = '\n\n'.join([go_file_top] + go_code_sections)
+        return c_code, go_code
+
     @staticmethod
     def _generate_c_proxy_signature(func_declaration):
         passed_params = func_declaration.parameters[:-1]
@@ -27,7 +73,10 @@ class Generator:
 
     @staticmethod
     def _generate_c_proxy_declaration_code(func_declaration):
-        return Generator._generate_c_proxy_signature(func_declaration) + ';'
+        passed_params = func_declaration.parameters[:-1]
+        c_proxy_declared_params = [FunctionParameter(name='f', type='void *')] + passed_params
+        param_string = ', '.join([f'{param.type} {param.name}' for param in c_proxy_declared_params])
+        return f'{func_declaration.return_type} indy_{func_declaration.name}_proxy({param_string});'
 
     @staticmethod
     def _generate_c_proxy_code(func_declaration):
@@ -37,7 +86,7 @@ class Generator:
         callback_name = _callback_name_camel_case(func_declaration.name)
         param_names_string = ', '.join([p.name for p in func_declaration.parameters[:-1]])
         invocation_and_return_string = f'return func({param_names_string}, &{callback_name});'
-        c_proxy_code = f'{signature_string}\n{{\n\t{cast_string}\n\t{invocation_and_return_string}\n}}'
+        c_proxy_code = f'{signature_string} {{\n\t{cast_string}\n\t{invocation_and_return_string}\n}}'
         return c_proxy_code
 
     @staticmethod
@@ -54,6 +103,16 @@ class Generator:
     @staticmethod
     def _generate_callback_code(go_function):
         callback = go_function.callback
+        cgo_callback_parameter_types = []
+        for param in callback.parameters:
+            try:
+                cgo_type = get_c_type_for_cgo_type(param.type)
+                cgo_callback_parameter_types.append(cgo_type)
+            except Exception as e:
+                pass
+        param_type_string = ', '.join([cgo_type for cgo_type in cgo_callback_parameter_types])
+        extern_declaration = f'extern void {callback.name}({param_type_string});'
+
         export_string = f'//export {callback.name}'
         param_string = ', '.join([f'{param.name} {param.type}' for param in callback.parameters])
         signature_string = f'func {callback.name}({param_string})'
@@ -79,7 +138,7 @@ class Generator:
 
         full_code = f'{export_string}\n{signature_string} {{\n\t{deregister_call_string}{_DEREGISTER_CALL_ERR_CHECK}\n\t{res_init_string}\n\t{res_send_string}\n}}'
 
-        return full_code
+        return extern_declaration, full_code
 
     @staticmethod
     def _generate_variable_setup_code(go_variable):
@@ -110,7 +169,7 @@ class Generator:
         return_string_if_err = f'return {", ".join(returned_values_if_err)}'
         err_check_string = f'if err != nil {{\n\t\t{return_string_if_err}\n\t}}'
 
-        cgo_var_names = []
+        cgo_var_names = ['commandHandle']
         cgo_var_setup_strings = []
         for var in go_function.parameters:
             cgo_var_name, cgo_var_setup_string = Generator._generate_variable_setup_code(var)
@@ -125,7 +184,7 @@ class Generator:
         result_retrieval_string = f'_res := <- resCh\n\tres := _res.(*{go_function.result_struct.name})'
 
         error_code_field_name = go_function.result_struct.fields[0].name
-        error_code_check = f'if res.{error_code_field_name} != 0 {{\n\t\terr = fmt.Errorf("Libindy returned code: %d", resCode)\n\t{return_string_if_err}\n\t}}'
+        error_code_check = f'if res.{error_code_field_name} != 0 {{\n\t\terr = fmt.Errorf("Libindy returned code: %d", res.{error_code_field_name})\n\t{return_string_if_err}\n\t}}'
 
         returned_values = []
         for field in go_function.result_struct.fields[1:]:
@@ -143,6 +202,26 @@ class Generator:
         self._header_dir_path = header_dir_path
         self._output_path = output_path
         self._c_function_declarations = {}
+
+    def generate(self):
+        self._prepare_c_function_declarations()
+
+        try:
+            for file_name, declarations in self._c_function_declarations.items():
+                c_code, go_code = Generator._generate_code(file_name, declarations)
+                base_file_name = file_name.replace('indy_', '')
+                base_file_name = base_file_name.split('.')[0]
+
+                c_file_name = base_file_name + '.c'
+                with open(os.path.join(self._output_path, c_file_name), 'w') as f:
+                    f.write(c_code)
+
+                go_file_name = base_file_name + '.go'
+                with open(os.path.join(self._output_path, go_file_name), 'w') as f:
+                    f.write(go_code)
+
+        except OSError as e:
+            raise GeneratorError(f'Error while writing output files') from e
 
     def _read_header_files(self):
         header_file_contents = {}
@@ -184,7 +263,6 @@ _REGISTER_CALL_TEMPLATE = 'pointer, commandHandle, resCh, err := resolver.Regist
 _DEREGISTER_CALL_TEMPLATE = 'resCh, err := resolver.DeregisterCall({})'
 _DEREGISTER_CALL_ERR_CHECK = """
     if err != nil {
-        log.Printf("ERROR: invalid handle in callback.\\n")
-        return
+        panic("Invalid handle in callback")
     }
 """
